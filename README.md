@@ -18,33 +18,21 @@ $ cd CTCModel
 ## Getting started
 Example of a standard recurrent neural network with CTCModel in Keras.
 
-<code>
+```
 from keras.layers import LSTM, TimeDistributed, Dense, Activation, Input
- 
 from keras.optimizers import Adam
-
 from numpy import zeros
-
 from CTCModel import CTCModel
 
-&nbsp;
-
 input_layer = Input((None, h_features))
-
 lstm0 = LSTM(128, return_sequences=True)(input_layer)
-
 lstm1 = LSTM(128, return_sequences=True)(lstm0)
-
 dense = TimeDistributed(Dense(nb_labels))(lstm1)
-
 output_layer = Activation("sigmoid")
 
-&nbsp;
-
 model = CTCModel(input_layer, output_layer)
-
 model.compile(optimizer=Adam(lr=1e-4))
-</code>
+```
 
 
 ----------
