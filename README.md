@@ -20,17 +20,29 @@ Example of a standard recurrent neural network with CTCModel in Keras.
 
 <code>
 from keras.layers import LSTM, TimeDistributed, Dense, Activation, Input
+ 
 from keras.optimizers import Adam
+
 from numpy import zeros
+
 from CTCModel import CTCModel
+
 &nbsp;
+
 input_layer = Input((None, h_features))
+
 lstm0 = LSTM(128, return_sequences=True)(input_layer)
+
 lstm1 = LSTM(128, return_sequences=True)(lstm0)
+
 dense = TimeDistributed(Dense(nb_labels))(lstm1)
+
 output_layer = Activation("sigmoid")
+
 &nbsp;
+
 model = CTCModel(input_layer, output_layer)
+
 model.compile(optimizer=Adam(lr=1e-4))
 </code>
 
@@ -60,6 +72,7 @@ model.predict([x_test, x_test_len])
 
 The file example.py is an exemple of the use of CTCModel. The dataset is composed of sequence of digits. This is images from the  MNIST datasets [Lecun 98] that have been concatenated to get observation sequences and label sequences.  
 The example shows how to use the standard fit, predict and evaluate methods. From the observation and label sequences, we create two list per dataset containing the length of each sequence, one list for the observations and one for the labels. Then data are padded in order to provide inputs of fixed-size to the Keras methods.  
+
 A standard Reccurent Neural Network with bidirectional layers is defined and trained using the *fit* method of CTCModel. Then the *evaluate* method is performed to compute the loss, the label error rate and the sequence error rate on the test set.  The output of the *evaluate* method is thus a list containing the values of each metric. Finally, the *predict* method is applied to get the predictions on the test set. The first predicted sequence are printed in order to compare the predicted labels with the ground truth.  
 
 ## Under the hood
