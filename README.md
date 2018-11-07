@@ -5,7 +5,7 @@
 
 CTCModel makes the training of a RNN with the Connectionnist Temporal Classification approach completely transparent.
 
-It directly inherits from the traditionnal Keras 2 Model and uses the TensorFlow implementation of the CTC loss and decoding functions.
+It directly inherits from the traditionnal Keras Model and uses the TensorFlow implementation of the CTC loss and decoding functions.
 
 ## Dependencies
 - Keras
