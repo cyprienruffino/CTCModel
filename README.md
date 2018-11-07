@@ -48,13 +48,11 @@ The standard inputs x and y of a Keras Model, where x is the observations and y 
 Here, y is not used in a standard way and must be defined for Keras methods (as the labels or an empty structure of length equal to the length of labels).
 Let *x_train*, *y_train*, *x_train_len* and *y_train_len* those terms. Fit, evaluate and predict methods can be used as follow:
 
-<code>
+```
 model.fit(x=[x_train,y_train,x_train_len,y_train_len], y=zeros(nb_train), batch_size=64)
-&nbsp;
 print(model.evaluate(x=[x_test,y_test,x_test_len,y_test_len], batch_size=64))
-&nbsp;
 model.predict([x_test, x_test_len])
-</code>
+```
 
 ## Example
 
