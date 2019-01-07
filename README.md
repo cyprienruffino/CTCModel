@@ -1,5 +1,5 @@
 ﻿
-# CTCModel : A transparent CTC implementation for Keras
+# CTCModel : A Connectionnist Temporal Classification implementation for Keras
 
 ## Description
 
