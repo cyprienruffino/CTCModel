@@ -75,10 +75,10 @@ If you use CTCModel for research purposes, please consider adding the following 
 
 <code>
 @misc{ctcmodel,
-author = {Soullard, Yann and Ruffino, Cyprien and Paquet, Thierry},\n
-title = {{CTCModel: Connectionist Temporal Classification in Keras}},\n
-year = {2018},\n
-ee = {https://arxiv.org/abs/1901.07957},\n
+author = {Soullard, Yann and Ruffino, Cyprien and Paquet, Thierry},<br/>
+title = {{CTCModel: Connectionist Temporal Classification in Keras}},<br/>
+year = {2018},<br/>
+ee = {https://arxiv.org/abs/1901.07957},<br/>
 archivePrefix = {arXiv}
 }
 </code>
