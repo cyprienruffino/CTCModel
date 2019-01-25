@@ -77,9 +77,10 @@ CTCModel is under the terms of the GPL-3.0 licence.
 <code>
 @misc{ctcmodel,
 author = {Soullard, Yann and Ruffino, Cyprien and Paquet, Thierry},
-howpublished = {$\backslash$url{\{}https://arxiv.org/link},
 title = {{CTCModel: Connectionist Temporal Classification in Keras}},
-year = {2018}
+year = {2018},
+ee = {https://arxiv.org/abs/1901.07957},
+archivePrefix = {arXiv}
 }
 </code>
 )
