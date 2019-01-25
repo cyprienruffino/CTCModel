@@ -71,18 +71,18 @@ CTCModel was developped at the LITIS laboratory, Normandie University (http://ww
 
 CTCModel is under the terms of the GPL-3.0 licence.  
 
-[//]: # (If you use CTCModel for research purposes, please consider adding the following citation to your paper:
+If you use CTCModel for research purposes, please consider adding the following citation to your paper:
 
 <code>
 @misc{ctcmodel,
-author = {Soullard, Yann and Ruffino, Cyprien and Paquet, Thierry},
-title = {{CTCModel: Connectionist Temporal Classification in Keras}},
-year = {2018},
-ee = {https://arxiv.org/abs/1901.07957},
+author = {Soullard, Yann and Ruffino, Cyprien and Paquet, Thierry},\n
+title = {{CTCModel: Connectionist Temporal Classification in Keras}},\n
+year = {2018},\n
+ee = {https://arxiv.org/abs/1901.07957},\n
 archivePrefix = {arXiv}
 }
 </code>
-)
+
 
 ## References
 F. Chollet et al.. Keras: Deep Learning for Python, https://github.com/keras-team/keras, 2015.   
