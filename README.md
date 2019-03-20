@@ -30,7 +30,7 @@ lstm1 = LSTM(128, return_sequences=True)(lstm0)
 dense = TimeDistributed(Dense(nb_labels))(lstm1)
 output_layer = Activation("sigmoid")
 
-model = CTCModel(input_layer, output_layer)
+model = CTCModel([input_layer], [output_layer])
 model.compile(optimizer=Adam(lr=1e-4))
 ```
 
