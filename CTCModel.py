@@ -929,7 +929,7 @@ class CTCModel:
         output.close()
 
 
-    def load_model(self, path_dir, optimizer, file_weights=None):
+    def load_model(self, path_dir, optimizer, file_weights=None, by_name=False):
         """ Load a model in path_dir 
         load model_train, model_pred and model_eval from json 
         load inputs and outputs from json
@@ -979,14 +979,43 @@ class CTCModel:
 
         if file_weights is not None:
             if os.path.exists(file_weights):
-                self.model_train.load_weights(file_weights)
-                self.model_pred.set_weights(self.model_train.get_weights())
-                self.model_eval.set_weights(self.model_train.get_weights())
+                load_weights(file_weights, by_name=by_name)
+                #self.model_train.load_weights(file_weights, by_name=by_name)
+                #self.model_pred.set_weights(self.model_train.get_weights())
+                #self.model_eval.set_weights(self.model_train.get_weights())
             elif os.path.exists(path_dir + file_weights):
-                self.model_train.load_weights(path_dir + file_weights)
-                self.model_pred.set_weights(self.model_train.get_weights())
-                self.model_eval.set_weights(self.model_train.get_weights())
+                load_weights(path_dir + file_weights, by_name=by_name)
+                #self.model_train.load_weights(path_dir + file_weights, by_name=by_name)
+                #self.model_pred.set_weights(self.model_train.get_weights())
+                #self.model_eval.set_weights(self.model_train.get_weights())
 
+
+def load_weights(file_weights, by_name=False):
+    """
+    LOAD_WEIGHTS:
+    Loads all layer weights from a HDF5 save file.
+
+    If `by_name` is False (default) weights are loaded
+    based on the network's topology, meaning the architecture
+    should be the same as when the weights were saved.
+    Note that layers that don't have weights are not taken
+    into account in the topological ordering, so adding or
+    removing layers is fine as long as they don't have weights.
+
+    If `by_name` is True, weights are loaded into layers
+    only if they share the same name. This is useful
+    for fine-tuning or transfer-learning models where
+    some of the layers have changed.
+
+    If the message "weights can not be loaded.." appears, make sure that the directory of the h5 file is right.
+    """
+
+    if os.path.exists(file_weights):
+        self.model_train.load_weights(file_weights, by_name=by_name)
+        self.model_pred.set_weights(self.model_train.get_weights())
+        self.model_eval.set_weights(self.model_train.get_weights())
+    else:
+        print("weights can not be loaded..")
 
 
 def _standardize_input_data(data, names, shapes=None,
