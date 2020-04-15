@@ -6,16 +6,17 @@ import os
 from keras import Input
 from keras.engine import Model
 from keras.layers import Lambda
-from keras.models import model_from_json
+from keras.models import model_from_json, Sequential
 import pickle
 from tensorflow.python.ops import ctc_ops as ctc
 
 from keras.utils import Sequence, GeneratorEnqueuer, OrderedEnqueuer
 import warnings
 from keras.utils.generic_utils import Progbar
+from keras.layers import TimeDistributed, Activation, Dense
 
-#from ocr_ctc.utils.utils_analysis import tf_edit_distance
-#from ocr_ctc.utils.utils_keras import Kreshape_To1D
+# from ocr_ctc.utils.utils_analysis import tf_edit_distance
+# from ocr_ctc.utils.utils_keras import Kreshape_To1D
 from keras.preprocessing import sequence
 
 """
@@ -50,32 +51,36 @@ class CTCModel:
         self.model_train = None
         self.model_pred = None
         self.model_eval = None
-        self.inputs = inputs
-        self.outputs = outputs
+        if not isinstance(inputs, list):
+            self.inputs = [inputs]
+        else:
+            self.inputs = inputs
+        if not isinstance(outputs, list):
+            self.outputs = [outputs]
+        else:
+            self.outputs = outputs
 
         self.greedy = greedy
         self.beam_width = beam_width
         self.top_paths = top_paths
         self.charset = charset
 
-
     def compile(self, optimizer):
         """
         Configures the CTC Model for training.
-        
+
         There is 3 Keras models:
             - one for training
             - one for predicting
             - one for analyzing
-        
+
         Lambda layers are used to compute:
             - the CTC loss function 
             - the CTC decoding
             - the CTC evaluation
-        
+
         :param optimizer: The optimizer used during training
         """
-
 
         # Others inputs for the CTC approach
         labels = Input(name='labels', shape=[None])
@@ -87,16 +92,17 @@ class CTCModel:
             self.outputs + [labels, input_length, label_length])
 
         # Lambda layer for the decoding function
-        out_decoded_dense = Lambda(self.ctc_complete_decoding_lambda_func, output_shape=(None, None), name='CTCdecode', arguments={'greedy': self.greedy,
-                                     'beam_width': self.beam_width, 'top_paths': self.top_paths},dtype="float32")(
+        out_decoded_dense = Lambda(self.ctc_complete_decoding_lambda_func, output_shape=(None, None), name='CTCdecode',
+                                   arguments={'greedy': self.greedy,
+                                              'beam_width': self.beam_width, 'top_paths': self.top_paths},
+                                   dtype="float32")(
             self.outputs + [input_length])
 
         # Lambda layer to perform an analysis (CER and SER)
         out_analysis = Lambda(self.ctc_complete_analysis_lambda_func, output_shape=(None,), name='CTCanalysis',
-                                   arguments={'greedy': self.greedy,
-                                              'beam_width': self.beam_width, 'top_paths': self.top_paths},dtype="float32")(
-                    self.outputs + [labels, input_length, label_length])
-
+                              arguments={'greedy': self.greedy,
+                                         'beam_width': self.beam_width, 'top_paths': self.top_paths}, dtype="float32")(
+            self.outputs + [labels, input_length, label_length])
 
         # create Keras models
         self.model_init = Model(inputs=self.inputs, outputs=self.outputs)
@@ -109,7 +115,6 @@ class CTCModel:
         self.model_pred.compile(loss={'CTCdecode': lambda yt, yp: yp}, optimizer=optimizer)
         self.model_eval.compile(loss={'CTCanalysis': lambda yt, yp: yp}, optimizer=optimizer)
 
-
     def get_model_train(self):
         """
         :return: Model used for training using the CTC approach
@@ -121,7 +126,6 @@ class CTCModel:
         :return: Model used for testing using the CTC approach
         """
         return self.model_pred
-
 
     def get_model_eval(self):
         """
@@ -151,7 +155,6 @@ class CTCModel:
 
         return loss, loss_data
 
-
     def get_loss(self, inputs, verbose=False):
         """
         Computation the loss
@@ -174,7 +177,6 @@ class CTCModel:
         loss = np.sum(loss_data)
 
         return loss, loss_data
-
 
     def get_loss_generator(self, generator, nb_batchs, verbose=False):
         """
@@ -203,14 +205,13 @@ class CTCModel:
         loss = np.sum(loss_per_data)
         return loss, loss_per_data
 
-
     def get_probas_generator(self, generator, nb_batchs, verbose=False):
         """
         Get the probabilities of each label at each time of an observation sequence (matrix T x D)
         This is the output of the softmax function after the recurrent layers (the input of the CTC computations)
-        
+
         Computation is done in batches using a generator. This function does not exist in a Keras Model.
-        
+
         :return: A set of probabilities for each sequence and each time frame, one probability per label + the blank
             (this is the output of the TimeDistributed Dense layer, the blank label is the last probability)
         """
@@ -218,14 +219,13 @@ class CTCModel:
         probs_epoch = []
 
         for k in range(nb_batchs):
-
             data = next(generator)
 
             x = data[0][0]
             x_len = data[0][2]
             batch_size = x.shape[0]
 
-            # Find the output of the softmax function
+            #  Find the output of the softmax function
             probs = self.model_init.predict(x, batch_size=batch_size, verbose=verbose)
 
             # Select the outputs that do not refer to padding
@@ -256,7 +256,6 @@ class CTCModel:
 
         return probs_epoch
 
-
     def get_probas(self, inputs, batch_size, verbose=False):
         """
         Get the probabilities of each label at each time of an observation sequence (matrix T x D)
@@ -268,7 +267,6 @@ class CTCModel:
             (this is the output of the TimeDistributed Dense layer, the blank label is the last probability)
         """
 
-
         x = inputs[0]
         x_len = inputs[2]
 
@@ -279,8 +277,6 @@ class CTCModel:
         probs_epoch = [np.asarray(probs[data_idx, :x_len[data_idx][0], :]) for data_idx in range(batch_size)]
 
         return probs_epoch
-
-
 
     def fit_generator(self, generator,
                       steps_per_epoch,
@@ -296,14 +292,14 @@ class CTCModel:
                       initial_epoch=0):
         """
         Model training on data yielded batch-by-batch by a Python generator.
-        
+
         The generator is run in parallel to the model, for efficiency. 
         For instance, this allows you to do real-time data augmentation on images on CPU in parallel to training your model on GPU.
-        
+
         A major modification concerns the generator that must provide x data of the form:
           [input_sequences, label_sequences, inputs_lengths, labels_length]
         (in a similar way than for using CTC in tensorflow)
-        
+
         :param: See keras.engine.Model.fit_generator()
         :return: A History object
         """
@@ -316,7 +312,6 @@ class CTCModel:
         self.model_pred.set_weights(self.model_train.get_weights())  # required??
         self.model_eval.set_weights(self.model_train.get_weights())
         return out
-
 
     def fit(self, x=None,
             y=None,
@@ -344,31 +339,31 @@ class CTCModel:
         """
 
         out = self.model_train.fit(x=x, y=y, batch_size=batch_size, epochs=epochs, verbose=verbose,
-            callbacks=callbacks, validation_split=validation_split, validation_data=validation_data,
-            shuffle=shuffle, class_weight=class_weight, sample_weight=sample_weight, initial_epoch=initial_epoch,
-            steps_per_epoch=steps_per_epoch, validation_steps=validation_steps)
+                                   callbacks=callbacks, validation_split=validation_split,
+                                   validation_data=validation_data,
+                                   shuffle=shuffle, class_weight=class_weight, sample_weight=sample_weight,
+                                   initial_epoch=initial_epoch,
+                                   steps_per_epoch=steps_per_epoch, validation_steps=validation_steps)
 
         self.model_pred.set_weights(self.model_train.get_weights())
         self.model_eval.set_weights(self.model_train.get_weights())
 
         return out
-
 
     def train_on_batch(self, x, y, sample_weight=None, class_weight=None):
         """ Runs a single gradient update on a single batch of data.
         See Keras.Model for more details.
-        
-        
+
+
         """
 
         out = self.model_train.train_on_batch(x, y, sample_weight=sample_weight,
-                       class_weight=class_weight)
+                                              class_weight=class_weight)
 
         self.model_pred.set_weights(self.model_train.get_weights())
         self.model_eval.set_weights(self.model_train.get_weights())
 
         return out
-
 
     def evaluate(self, x=None, batch_size=None, verbose=1, steps=None, metrics=['loss', 'ler', 'ser']):
         """ Evaluates the model on a dataset_manager.
@@ -383,7 +378,7 @@ class CTCModel:
                         y = Input data as a 2D Tensor (batch_size, max_label_len)
                         x_len = 1D array with the length of each data in batch_size
                         y_len = 1D array with the length of each labeling
-                        
+
                 metrics = list of metrics that are computed. This is elements among the 3 following metrics:
                     'loss' : compute the loss function on x
                     'ler' : compute the label error rate
@@ -402,7 +397,8 @@ class CTCModel:
         nb_data = x_input.shape[0]
 
         if 'ler' in metrics or 'ser' in metrics:
-            eval_batch = self.model_eval.predict([x_input, y, x_len, y_len], batch_size=batch_size, verbose=verbose, steps=steps)
+            eval_batch = self.model_eval.predict([x_input, y, x_len, y_len], batch_size=batch_size, verbose=verbose,
+                                                 steps=steps)
 
         if 'ser' in metrics:
             seq_error += np.sum([1 for ler_data in eval_batch if ler_data != 0])
@@ -422,7 +418,6 @@ class CTCModel:
         """ Name of a Keras Model function: this relates to evaluate on batch """
         return self.evaluate_on_batch(x)
 
-
     def evaluate_on_batch(self, x=None, metrics=['loss', 'ler', 'ser']):
         """ Evaluates the model on a dataset_manager.
 
@@ -436,7 +431,7 @@ class CTCModel:
                         y = Input data as a 2D Tensor (batch_size, max_label_len)
                         x_len = 1D array with the length of each data in batch_size
                         y_len = 1D array with the length of each labeling
-                        
+
                 metrics = list of metrics that are computed. This is elements among the 3 following metrics:
                     'loss' : compute the loss function on x
                     'ler' : compute the label error rate
@@ -471,13 +466,13 @@ class CTCModel:
 
         return outmetrics
 
-
-    def evaluate_generator(self, generator, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=0, metrics=['ler', 'ser']):
+    def evaluate_generator(self, generator, steps=None, max_queue_size=10, workers=1, use_multiprocessing=False,
+                           verbose=0, metrics=['ler', 'ser']):
         """ Evaluates the model on a data generator.
-        
+
         :param: See keras.engine.Model.fit()
         :return: A History object
-        
+
         CTC evaluation on data yielded batch-by-batch by a Python generator.
 
         Inputs:
@@ -487,7 +482,7 @@ class CTCModel:
                     x_len = 1D array with the length of each data in batch_size
                     y_len = 1D array with the length of each labeling
             nb_batchs = number of batchs that are evaluated
-            
+
             metrics = list of metrics that are computed. This is elements among the 3 following metrics:
                     'loss' : compute the loss function on x
                     'ler' : compute the label error rate
@@ -495,8 +490,8 @@ class CTCModel:
             Warning: if the 'loss' and another metric are requested, make sure that the number of steps allows to evaluate the entire dataset,
                    even if the data given by the generator will be not the same for all metrics. To make sure, you can only compute 'ler' and 'ser' here
                    then initialize again the generator and call get_loss_generator. 
-            
-        
+
+
 
         Outputs: a list containing the metrics given in argument:
             loss : the loss on the set
@@ -506,12 +501,13 @@ class CTCModel:
 
         if 'ler' in metrics or 'ser' in metrics:
             ler_dataset = self.model_eval.predict_generator(generator, steps,
-                          max_queue_size=max_queue_size,
-                          workers=workers,
-                          use_multiprocessing=use_multiprocessing,
-                          verbose=verbose)
+                                                            max_queue_size=max_queue_size,
+                                                            workers=workers,
+                                                            use_multiprocessing=use_multiprocessing,
+                                                            verbose=verbose)
         if 'ser' in metrics:
-            seq_error = float(np.sum([1 for ler_data in ler_dataset if ler_data != 0])) / len(ler_dataset) if len(ler_dataset)>0 else 1.
+            seq_error = float(np.sum([1 for ler_data in ler_dataset if ler_data != 0])) / len(ler_dataset) if len(
+                ler_dataset) > 0 else 1.
 
         outmetrics = []
         if 'loss' in metrics:
@@ -523,7 +519,6 @@ class CTCModel:
 
         return outmetrics
 
-
     def predict_on_batch(self, x):
         """Returns predictions for a single batch of samples.
 
@@ -533,10 +528,11 @@ class CTCModel:
                 # Returns
                     Numpy array(s) of predictions.
         """
-        batch_size = x[0].shape[0]
+        # batch_size = x[0].shape[0]
 
-        return self.predict(x, batch_size=batch_size)
-
+        out = self.model_pred.predict_on_batch(x)
+        output = [[pr for pr in pred if pr != -1] for pred in out]
+        return output  # self.predict(x, batch_size=batch_size)
 
     def predict_generator(self, generator, steps,
                           max_queue_size=10,
@@ -548,7 +544,7 @@ class CTCModel:
 
         The generator should return the same kind of data as accepted by
         `predict_on_batch`.
-        
+
         generator = DataGenerator class that returns:
                         x = Input data as a 3D Tensor (batch_size, max_input_len, dim_features)
                         y = Input data as a 2D Tensor (batch_size, max_label_len)
@@ -643,7 +639,7 @@ class CTCModel:
                         all_lab.append([])
 
                 for i, out in enumerate(outs):
-                    all_outs[i].append([val_out for val_out in out if val_out!=-1])
+                    all_outs[i].append([val_out for val_out in out if val_out != -1])
                     if isinstance(y_length[i], list):
                         all_lab[i].append(y[i][:y_length[i][0]])
                     elif isinstance(y_length[i], int):
@@ -667,7 +663,7 @@ class CTCModel:
         lab_out = []
         for i in range(nb_data):
             pred_out += [all_outs[b][i] for b in range(batch_size)]
-            lab_out +=  [all_lab[b][i] for b in range(batch_size)]
+            lab_out += [all_lab[b][i] for b in range(batch_size)]
 
         if decode_func is not None:  # convert model prediction (a label between 0 to nb_labels to an original label sequence)
             pred_out = decode_func(pred_out, self.charset)
@@ -675,13 +671,15 @@ class CTCModel:
 
         return pred_out, lab_out
 
+    def summary(self):
+        return self.model_train.summary()
 
     def predict(self, x, batch_size=None, verbose=0, steps=None, max_len=None, max_value=999):
 
         """
         The same function as in the Keras Model but with a different function predict_loop for dealing with variable length predictions
         Except that x = [x_features, x_len]
-        
+
         Generates output predictions for the input samples.
 
                 Computation is done in batches.
@@ -736,16 +734,17 @@ class CTCModel:
         self.model_pred._make_predict_function()
         f = self.model_pred.predict_function
         out = self._predict_loop(f, ins, batch_size=batch_size, max_value=max_value,
-                                  verbose=verbose, steps=steps, max_len=max_len)
+                                 verbose=verbose, steps=steps, max_len=max_len)
 
-        out_decode = [dec_data[:list(dec_data).index(max_value)] if max_value in dec_data else dec_data for i,dec_data in enumerate(out)]
+        out_decode = [dec_data[:list(dec_data).index(max_value)] if max_value in dec_data else dec_data for i, dec_data
+                      in enumerate(out)]
         return out_decode
 
     def _predict_loop(self, f, ins, max_len=100, max_value=999, batch_size=32, verbose=0, steps=None):
         """Abstract method to loop over some data in batches.
 
         Keras function that has been modified. 
-        
+
         # Arguments
             f: Keras function returning a list of tensors.
             ins: list of tensors to be fed to `f`.
@@ -760,9 +759,13 @@ class CTCModel:
             or list of arrays of predictions
             (if the model has multiple outputs).
         """
-        num_samples = self.model_pred._check_num_samples(ins, batch_size,
-                                              steps,
-                                              'steps')
+        # num_samples = self.model_pred._check_num_samples(ins, batch_size,
+        #                                       steps,
+        #                                       'steps')
+        num_samples = check_num_samples(ins,
+                                        batch_size=batch_size,
+                                        steps=steps,
+                                        steps_name='steps')
 
         if steps is not None:
             # Step-based predictions.
@@ -804,16 +807,16 @@ class CTCModel:
                 if batch_index == 0:
                     # Pre-allocate the results arrays.
                     for batch_out in batch_outs:
-                        shape = (num_samples,max_len)
+                        shape = (num_samples, max_len)
                         outs.append(np.zeros(shape, dtype=batch_out.dtype))
                 for i, batch_out in enumerate(batch_outs):
-                    outs[i][batch_start:batch_end] = sequence.pad_sequences(batch_out, value=float(max_value), maxlen=max_len,
-                                     dtype=batch_out.dtype, padding="post")
+                    outs[i][batch_start:batch_end] = sequence.pad_sequences(batch_out, value=float(max_value),
+                                                                            maxlen=max_len,
+                                                                            dtype=batch_out.dtype, padding="post")
 
             if len(outs) == 1:
                 return outs[0]
             return outs
-
 
     @staticmethod
     def ctc_loss_lambda_func(args):
@@ -825,8 +828,7 @@ class CTCModel:
         """
 
         y_pred, labels, input_length, label_length = args
-        return K.ctc_batch_cost(labels, y_pred, input_length, label_length)#, ignore_longer_outputs_than_inputs=True)
-
+        return K.ctc_batch_cost(labels, y_pred, input_length, label_length)  # , ignore_longer_outputs_than_inputs=True)
 
     @staticmethod
     def ctc_complete_decoding_lambda_func(args, **arguments):
@@ -840,14 +842,16 @@ class CTCModel:
             K.ctc_decode with dtype='float32'
         """
 
-        #import tensorflow as tf # Require for loading a model saved
+        # import tensorflow as tf # Require for loading a model saved
 
         y_pred, input_length = args
         my_params = arguments
 
         assert (K.backend() == 'tensorflow')
 
-        return K.cast(K.ctc_decode(y_pred, tf.squeeze(input_length), greedy=my_params['greedy'], beam_width=my_params['beam_width'], top_paths=my_params['top_paths'])[0][0], dtype='float32')
+        return K.cast(K.ctc_decode(y_pred, tf.squeeze(input_length), greedy=my_params['greedy'],
+                                   beam_width=my_params['beam_width'], top_paths=my_params['top_paths'])[0][0],
+                      dtype='float32')
 
     @staticmethod
     def ctc_complete_analysis_lambda_func(args, **arguments):
@@ -862,7 +866,7 @@ class CTCModel:
             ler = label error rate
         """
 
-        #import tensorflow as tf # Require for loading a model saved
+        # import tensorflow as tf # Require for loading a model saved
 
         y_pred, labels, input_length, label_len = args
         my_params = arguments
@@ -893,14 +897,12 @@ class CTCModel:
 
         return K.cast(ler_per_seq, dtype='float32')
 
-
-
     def save_model(self, path_dir, charset=None):
         """ Save a model in path_dir 
         save model_train, model_pred and model_eval in json 
         save inputs and outputs in json
         save model CTC parameters in a pickle 
-        
+
         :param path_dir: directory where the model architecture will be saved
         :param charset: set of labels (useful to keep the label order)
         """
@@ -921,101 +923,197 @@ class CTCModel:
         with open(path_dir + "/model_init.json", "w") as json_file:
             json_file.write(model_json)
 
-        param = {'greedy': self.greedy, 'beam_width': self.beam_width, 'top_paths': self.top_paths, 'charset': self.charset}
+        param = {'greedy': self.greedy, 'beam_width': self.beam_width, 'top_paths': self.top_paths,
+                 'charset': self.charset}
 
         output = open(path_dir + "/model_param.pkl", 'wb')
         p = pickle.Pickler(output)
         p.dump(param)
         output.close()
 
-
-    def load_model(self, path_dir, optimizer, file_weights=None, by_name=False):
+    def load_model(self, path_dir, optimizer, init_archi=True, file_weights=None, change_parameters=False, \
+                   init_last_layer=False, add_layers=None, trainable=False, removed_layers=2):
         """ Load a model in path_dir 
         load model_train, model_pred and model_eval from json 
         load inputs and outputs from json
         load model CTC parameters from a pickle 
-        
+
         :param path_dir: directory where the model is saved
         :param optimizer: The optimizer used during training
+        :param init_archi: load an architecture from json. Otherwise, the network archtiecture muste be initialized.
+        :param file_weights: weights to load (None = default parameters are returned).
+        :param init_last_layer: reinitialize the last layer using self.charset to get the number of labels.
+        :param add_layers: add some layers. None for no change in the network architecture. Otherwise, add_layers contains
+        a list of layers to add after the last layer of the current architecture.
+        :param trainable: in case of add_layers, lower layers can be not trained again.
+        :param removed_layers: remove the last layers of the current architecture. It is applied before adding new layers using add_layers.
         """
 
+        if init_archi:
 
-        json_file = open(path_dir + '/model_train.json', 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        self.model_train = model_from_json(loaded_model_json)
+            json_file = open(path_dir + '/model_train.json', 'r')
+            loaded_model_json = json_file.read()
+            json_file.close()
+            self.model_train = model_from_json(loaded_model_json)
 
-        json_file = open(path_dir + '/model_pred.json', 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        self.model_pred = model_from_json(loaded_model_json, custom_objects={"tf": tf})
+            json_file = open(path_dir + '/model_pred.json', 'r')
+            loaded_model_json = json_file.read()
+            json_file.close()
+            self.model_pred = model_from_json(loaded_model_json, custom_objects={"tf": tf})
 
-        json_file = open(path_dir + '/model_eval.json', 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        self.model_eval = model_from_json(loaded_model_json, custom_objects={"tf": tf, "ctc": ctc,
-                                                                             "tf_edit_distance": tf_edit_distance,
-                                                                             "Kreshape_To1D": Kreshape_To1D})
+            json_file = open(path_dir + '/model_eval.json', 'r')
+            loaded_model_json = json_file.read()
+            json_file.close()
+            self.model_eval = model_from_json(loaded_model_json, custom_objects={"tf": tf, "ctc": ctc,
+                                                                                 "tf_edit_distance": tf_edit_distance,
+                                                                                 "Kreshape_To1D": Kreshape_To1D})
 
-        json_file = open(path_dir + '/model_init.json', 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        self.model_init = model_from_json(loaded_model_json, custom_objects={"tf": tf})
+            json_file = open(path_dir + '/model_init.json', 'r')
+            loaded_model_json = json_file.read()
+            json_file.close()
+            self.model_init = model_from_json(loaded_model_json, custom_objects={"tf": tf})
 
-        self.inputs = self.model_init.inputs
-        self.outputs = self.model_init.outputs
+            self.inputs = self.model_init.inputs
+            self.outputs = self.model_init.outputs
 
-        input = open(path_dir + "/model_param.pkl", 'rb')
-        p = pickle.Unpickler(input)
-        param = p.load()
-        input.close()
+            input = open(path_dir + "/model_param.pkl", 'rb')
+            p = pickle.Unpickler(input)
+            param = p.load()
+            input.close()
 
-        self.greedy = param['greedy'] if 'greedy' in param.keys() else self.greedy
-        self.beam_width = param['beam_width'] if 'beam_width' in param.keys() else self.beam_width
-        self.top_paths = param['top_paths'] if 'top_paths' in param.keys() else self.top_paths
-        self.charset = param['charset'] if 'charset' in param.keys() else self.charset
+            if not change_parameters:
+                self.greedy = param['greedy'] if 'greedy' in param.keys() else self.greedy
+                self.beam_width = param['beam_width'] if 'beam_width' in param.keys() else self.beam_width
+                self.top_paths = param['top_paths'] if 'top_paths' in param.keys() else self.top_paths
+            self.charset = param['charset'] if 'charset' in param.keys() and self.charset is None else self.charset
 
         self.compile(optimizer)
 
         if file_weights is not None:
             if os.path.exists(file_weights):
-                load_weights(file_weights, by_name=by_name)
-                #self.model_train.load_weights(file_weights, by_name=by_name)
-                #self.model_pred.set_weights(self.model_train.get_weights())
-                #self.model_eval.set_weights(self.model_train.get_weights())
+                self.load_weights(file_weights)
+                # self.model_train.load_weights(file_weights)
+                # self.model_pred.set_weights(self.model_train.get_weights())
+                # self.model_eval.set_weights(self.model_train.get_weights())
             elif os.path.exists(path_dir + file_weights):
-                load_weights(path_dir + file_weights, by_name=by_name)
-                #self.model_train.load_weights(path_dir + file_weights, by_name=by_name)
-                #self.model_pred.set_weights(self.model_train.get_weights())
-                #self.model_eval.set_weights(self.model_train.get_weights())
+                self.load_weights(path_dir + file_weights)
+                # self.model_train.load_weights(path_dir + file_weights)
+                # self.model_pred.set_weights(self.model_train.get_weights())
+                # self.model_eval.set_weights(self.model_train.get_weights())
+
+        if add_layers != None:  #  add layers after transfer
+            labels = Input(name='labels', shape=[None])
+            input_length = Input(name='input_length', shape=[1])
+            label_length = Input(name='label_length', shape=[1])
+
+            new_layer = Input(name='input', shape=self.model_init.layers[0].output_shape[1:])
+            self.inputs = [new_layer]
+            for layer in self.model_init.layers[1:-removed_layers]:
+                print(layer)
+                new_layer = layer(new_layer)
+                layer.trainable = trainable
+            for layer in add_layers:
+                new_layer = layer(new_layer)
+                layer.trainable = True
+
+            self.outputs = [new_layer]
+            loss_out = Lambda(self.ctc_loss_lambda_func, output_shape=(1,), name='CTCloss')(
+                self.outputs + [labels, input_length, label_length])
+            # Lambda layer for the decoding function
+            out_decoded_dense = Lambda(self.ctc_complete_decoding_lambda_func, output_shape=(None, None),
+                                       name='CTCdecode', arguments={'greedy': self.greedy,
+                                                                    'beam_width': self.beam_width,
+                                                                    'top_paths': self.top_paths}, dtype="float32")(
+                self.outputs + [input_length])
+
+            # Lambda layer to perform an analysis (CER and SER)
+            out_analysis = Lambda(self.ctc_complete_analysis_lambda_func, output_shape=(None,), name='CTCanalysis',
+                                  arguments={'greedy': self.greedy,
+                                             'beam_width': self.beam_width, 'top_paths': self.top_paths},
+                                  dtype="float32")(
+                self.outputs + [labels, input_length, label_length])
+
+            # create Keras models
+            self.model_init = Model(inputs=self.inputs, outputs=self.outputs)
+            self.model_train = Model(inputs=self.inputs + [labels, input_length, label_length], outputs=loss_out)
+            self.model_pred = Model(inputs=self.inputs + [input_length], outputs=out_decoded_dense)
+            self.model_eval = Model(inputs=self.inputs + [labels, input_length, label_length], outputs=out_analysis)
+
+            # Compile models
+            self.model_train.compile(loss={'CTCloss': lambda yt, yp: yp}, optimizer=optimizer)
+            self.model_pred.compile(loss={'CTCdecode': lambda yt, yp: yp}, optimizer=optimizer)
+            self.model_eval.compile(loss={'CTCanalysis': lambda yt, yp: yp}, optimizer=optimizer)
 
 
-def load_weights(file_weights, by_name=False):
-    """
-    LOAD_WEIGHTS:
-    Loads all layer weights from a HDF5 save file.
+        elif init_last_layer:
+            labels = Input(name='labels', shape=[None])
+            input_length = Input(name='input_length', shape=[1])
+            label_length = Input(name='label_length', shape=[1])
 
-    If `by_name` is False (default) weights are loaded
-    based on the network's topology, meaning the architecture
-    should be the same as when the weights were saved.
-    Note that layers that don't have weights are not taken
-    into account in the topological ordering, so adding or
-    removing layers is fine as long as they don't have weights.
+            new_layer = Input(name='input', shape=self.model_init.layers[0].output_shape[1:])
+            self.inputs = [new_layer]
+            for layer in self.model_init.layers[1:-2]:
+                new_layer = layer(new_layer)
+            new_layer = TimeDistributed(Dense(len(self.charset) + 1), name="DenseSoftmax")(new_layer)
+            new_layer = Activation('softmax', name='Softmax')(new_layer)
 
-    If `by_name` is True, weights are loaded into layers
-    only if they share the same name. This is useful
-    for fine-tuning or transfer-learning models where
-    some of the layers have changed.
+            self.outputs = [new_layer]
 
-    If the message "weights can not be loaded.." appears, make sure that the directory of the h5 file is right.
-    """
+            # Lambda layer for computing the loss function
+            loss_out = Lambda(self.ctc_loss_lambda_func, output_shape=(1,), name='CTCloss')(
+                self.outputs + [labels, input_length, label_length])
+            # Lambda layer for the decoding function
+            out_decoded_dense = Lambda(self.ctc_complete_decoding_lambda_func, output_shape=(None, None),
+                                       name='CTCdecode', arguments={'greedy': self.greedy,
+                                                                    'beam_width': self.beam_width,
+                                                                    'top_paths': self.top_paths}, dtype="float32")(
+                self.outputs + [input_length])
 
-    if os.path.exists(file_weights):
-        self.model_train.load_weights(file_weights, by_name=by_name)
-        self.model_pred.set_weights(self.model_train.get_weights())
-        self.model_eval.set_weights(self.model_train.get_weights())
-    else:
-        print("weights can not be loaded..")
+            # Lambda layer to perform an analysis (CER and SER)
+            out_analysis = Lambda(self.ctc_complete_analysis_lambda_func, output_shape=(None,), name='CTCanalysis',
+                                  arguments={'greedy': self.greedy,
+                                             'beam_width': self.beam_width, 'top_paths': self.top_paths},
+                                  dtype="float32")(
+                self.outputs + [labels, input_length, label_length])
+
+            # create Keras models
+            self.model_init = Model(inputs=self.inputs, outputs=self.outputs)
+            self.model_train = Model(inputs=self.inputs + [labels, input_length, label_length], outputs=loss_out)
+            self.model_pred = Model(inputs=self.inputs + [input_length], outputs=out_decoded_dense)
+            self.model_eval = Model(inputs=self.inputs + [labels, input_length, label_length], outputs=out_analysis)
+
+            # Compile models
+            self.model_train.compile(loss={'CTCloss': lambda yt, yp: yp}, optimizer=optimizer)
+            self.model_pred.compile(loss={'CTCdecode': lambda yt, yp: yp}, optimizer=optimizer)
+            self.model_eval.compile(loss={'CTCanalysis': lambda yt, yp: yp}, optimizer=optimizer)
+
+
+    def load_weights(self, file_weights, by_name=False):
+        """
+        LOAD_WEIGHTS:
+        Loads all layer weights from a HDF5 save file.
+
+        If `by_name` is False (default) weights are loaded
+        based on the network's topology, meaning the architecture
+        should be the same as when the weights were saved.
+        Note that layers that don't have weights are not taken
+        into account in the topological ordering, so adding or
+        removing layers is fine as long as they don't have weights.
+
+        If `by_name` is True, weights are loaded into layers
+        only if they share the same name. This is useful
+        for fine-tuning or transfer-learning models where
+        some of the layers have changed.
+
+        If the message "weights can not be loaded.." appears, make sure that the directory of the h5 file is right.
+        """
+
+        if os.path.exists(file_weights):
+            self.model_train.load_weights(file_weights, by_name=by_name)
+            self.model_pred.set_weights(self.model_train.get_weights())
+            self.model_eval.set_weights(self.model_train.get_weights())
+        else:
+            print("weights can not be loaded..")
 
 
 def _standardize_input_data(data, names, shapes=None,
@@ -1038,7 +1136,7 @@ def _standardize_input_data(data, names, shapes=None,
         exception_prefix: String prefix used for exception formatting.
 
     Keras function that has been modified. 
-    
+
     # Returns
         List of standardized input arrays (one array per model input).
 
@@ -1049,7 +1147,7 @@ def _standardize_input_data(data, names, shapes=None,
         if data is not None and hasattr(data, '__len__') and len(data):
             raise ValueError('Error when checking model ' +
                              exception_prefix + ': '
-                             'expected no data, but got:', data)
+                                                'expected no data, but got:', data)
         return []
     if data is None:
         return [None for _ in range(len(names))]
@@ -1150,7 +1248,7 @@ def _slice_arrays(arrays, start=None, stop=None):
     Can also work on list/array of indices: `_slice_arrays(x, indices)`
 
     Keras function that has been modified. 
-    
+
     # Arguments
         arrays: Single array or list of arrays.
         start: can be an integer index (start index)
@@ -1186,7 +1284,7 @@ def _make_batches(size, batch_size):
     """Returns a list of batch indices (tuples of indices).
 
     Keras function that has been modified. 
-    
+
     # Arguments
         size: Integer, total size of the data to slice into batches.
         batch_size: Integer, batch size.
@@ -1212,3 +1310,49 @@ def tf_edit_distance(hypothesis, truth, norm=False):
     inputs are tf.Sparse_tensors """
 
     return tf.edit_distance(hypothesis, truth, normalize=norm, name='edit_distance')
+
+
+def check_num_samples(ins,
+                      batch_size=None,
+                      steps=None,
+                      steps_name='steps'):
+    """Checks the number of samples provided for training and evaluation.
+    The number of samples is not defined when running with `steps`,
+    in which case the number of samples is set to `None`.
+    # Arguments
+        ins: List of tensors to be fed to the Keras function.
+        batch_size: Integer batch size or `None` if not defined.
+        steps: Total number of steps (batches of samples)
+            before declaring `predict_loop` finished.
+            Ignored with the default value of `None`.
+        steps_name: The public API's parameter name for `steps`.
+    # Raises
+        ValueError: when `steps` is `None` and the attribute `ins.shape`
+        does not exist. Also raises ValueError when `steps` is not `None`
+        and `batch_size` is not `None` because they are mutually
+        exclusive.
+    # Returns
+        When `steps` is `None`, returns the number of samples to be
+        processed based on the size of the first dimension of the
+        first input Numpy array. When `steps` is not `None` and
+        `batch_size` is `None`, returns `None`.
+    # Raises
+        ValueError: In case of invalid arguments.
+    """
+    if steps is not None and batch_size is not None:
+        raise ValueError(
+            'If ' + steps_name + ' is set, the `batch_size` must be None.')
+
+    if not ins or any(K.is_tensor(x) for x in ins):
+        if steps is None:
+            raise ValueError(
+                'If your data is in the form of symbolic tensors, '
+                'you should specify the `' + steps_name + '` argument '
+                                                          '(instead of the `batch_size` argument, '
+                                                          'because symbolic tensors are expected to produce '
+                                                          'batches of input data).')
+        return None
+
+    if hasattr(ins[0], 'shape'):
+        return int(ins[0].shape[0])
+    return None  # Edge case where ins == [static_learning_phase]
