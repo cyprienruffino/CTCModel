@@ -1,7 +1,6 @@
-
 from keras.layers import TimeDistributed, Activation, Dense, Input, Bidirectional, LSTM, Masking, GaussianNoise
 from keras.optimizers import Adam
-from CTCModel import CTCModel
+from keras_ctcmodel.CTCModel import CTCModel as CTCModel
 import pickle
 from keras.preprocessing import sequence
 import numpy as np
