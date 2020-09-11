@@ -14,6 +14,7 @@ It directly inherits from the traditionnal Keras Model and uses the TensorFlow i
 ## Installation
 $ git clone https://github.com/cyprienruffino/CTCModel  
 $ cd CTCModel
+$ python setup.py install --user
 
 ## Getting started
 Example of a standard recurrent neural network with CTCModel in Keras.
@@ -22,7 +23,7 @@ Example of a standard recurrent neural network with CTCModel in Keras.
 from keras.layers import LSTM, TimeDistributed, Dense, Activation, Input
 from keras.optimizers import Adam
 from numpy import zeros
-from CTCModel import CTCModel
+from keras_ctcmodel.CTCModel import CTCModel as CTCModel
 
 input_layer = Input((None, h_features))
 lstm0 = LSTM(128, return_sequences=True)(input_layer)
