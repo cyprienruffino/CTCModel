@@ -13,10 +13,10 @@ It directly inherits from the traditionnal Keras Model and uses the TensorFlow i
 - six (for the example only)
 
 ## Installation
+$ pip install keras-ctcmodel
+
 $ git clone https://github.com/cyprienruffino/CTCModel  
-
 $ cd CTCModel
-
 $ python setup.py install --user
 
 ## Getting started
