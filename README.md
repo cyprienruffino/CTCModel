@@ -15,7 +15,9 @@ As of today, CTCModel only works with Tensorflow<2.0, migration is due soon.
 
 ## Installation
 $ git clone https://github.com/cyprienruffino/CTCModel  
+
 $ cd CTCModel
+
 $ python setup.py install --user
 
 ## Getting started
