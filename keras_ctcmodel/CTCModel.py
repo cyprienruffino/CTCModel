@@ -7,8 +7,16 @@ from keras import Input
 from keras.engine import Model
 from keras.layers import Lambda
 from keras.models import model_from_json, Sequential
+from tensorflow.python.framework import sparse_tensor
+from tensorflow.python.keras import callbacks as callbacks_module
+
+from tensorflow.python.eager import context
+from tensorflow.python.keras.engine import data_adapter
+from tensorflow.python.keras.utils import tf_utils
+from tensorflow.python.ops.ragged import ragged_concat_ops, ragged_tensor
+from tensorflow.python.util import nest
 import pickle
-from tensorflow.python.ops import ctc_ops as ctc
+from tensorflow.python.ops import ctc_ops as ctc, sparse_ops, array_ops
 
 from keras.utils import Sequence, GeneratorEnqueuer, OrderedEnqueuer
 import warnings
@@ -674,7 +682,7 @@ class CTCModel:
     def summary(self):
         return self.model_train.summary()
 
-    def predict(self, x, batch_size=None, verbose=0, steps=None, max_len=None, max_value=999):
+    def predict(self, x, batch_size=None, verbose=0, steps=None, max_len=None, max_value=999, callbacks=None):
 
         """
         The same function as in the Keras Model but with a different function predict_loop for dealing with variable length predictions
@@ -717,28 +725,66 @@ class CTCModel:
         x = _standardize_input_data(x, self.model_pred._feed_input_names,
                                     self.model_pred._feed_input_shapes,
                                     check_batch_axis=False)
+
+        # Creates a `tf.data.Dataset` and handles batch and epoch iteration.
+        data_handler = data_adapter.DataHandler(
+                x=x,
+                batch_size=batch_size,
+                steps_per_epoch=steps,
+                initial_epoch=0,
+                epochs=1,
+                max_queue_size=10,
+                workers=1,
+                use_multiprocessing=False,
+                model=self,
+                steps_per_execution=tf.constant(1, dtype=tf.int32))
+
+        if not isinstance(callbacks, callbacks_module.CallbackList):
+            callbacks = callbacks_module.CallbackList(
+                callbacks,
+                add_history=True,
+                add_progbar=verbose != 0,
+                model=self,
+                verbose=verbose,
+                epochs=1,
+                steps=data_handler.inferred_steps)
+
         if self.model_pred.stateful:
             if x[0].shape[0] > batch_size and x[0].shape[0] % batch_size != 0:
                 raise ValueError('In a stateful network, '
-                                 'you should only pass inputs with '
-                                 'a number of samples that can be '
-                                 'divided by the batch size. Found: ' +
-                                 str(x[0].shape[0]) + ' samples. '
-                                                      'Batch size: ' + str(batch_size) + '.')
+                                     'you should only pass inputs with '
+                                     'a number of samples that can be '
+                                     'divided by the batch size. Found: ' +
+                                     str(x[0].shape[0]) + ' samples. '
+                                                          'Batch size: ' + str(batch_size) + '.')
 
         # Prepare inputs, delegate logic to `_predict_loop`.
-        if self.model_pred.uses_learning_phase and not isinstance(K.learning_phase(), int):
-            ins = x + [0.]
-        else:
-            ins = x
-        self.model_pred._make_predict_function()
-        f = self.model_pred.predict_function
-        out = self._predict_loop(f, ins, batch_size=batch_size, max_value=max_value,
-                                 verbose=verbose, steps=steps, max_len=max_len)
-
-        out_decode = [dec_data[:list(dec_data).index(max_value)] if max_value in dec_data else dec_data for i, dec_data
-                      in enumerate(out)]
-        return out_decode
+        ins = x
+        outputs = None
+        predict_function = self.model_pred.make_predict_function()
+        self.model_pred._predict_counter.assign(0)
+        callbacks.on_predict_begin()
+        for _, iterator in data_handler.enumerate_epochs():  # Single epoch.
+            with data_handler.catch_stop_iteration():
+                for step in data_handler.steps():
+                    callbacks.on_predict_batch_begin(step)
+                    tmp_batch_outputs = predict_function(iterator)
+                    if data_handler.should_sync:
+                        context.async_wait()
+                    batch_outputs = tmp_batch_outputs  # No error, now safe to assign.
+                    if outputs is None:
+                        outputs = nest.map_structure(lambda batch_output: [batch_output],
+                                                         batch_outputs)
+                    else:
+                        nest.map_structure_up_to(
+                            batch_outputs,
+                            lambda output, batch_output: output.append(batch_output),
+                            outputs, batch_outputs)
+                    end_step = step + data_handler.step_increment
+                    callbacks.on_predict_batch_end(end_step, {'outputs': batch_outputs})
+            callbacks.on_predict_end()
+        all_outputs = nest.map_structure_up_to(batch_outputs, concat, outputs)
+        return tf_utils.to_numpy_or_python_type(all_outputs)
 
     def _predict_loop(self, f, ins, max_len=100, max_value=999, batch_size=32, verbose=0, steps=None):
         """Abstract method to loop over some data in batches.
@@ -808,11 +854,12 @@ class CTCModel:
                     # Pre-allocate the results arrays.
                     for batch_out in batch_outs:
                         shape = (num_samples, max_len)
-                        outs.append(np.zeros(shape, dtype=batch_out.dtype))
+                        outs.append(np.zeros(shape, dtype=batch_out.dtype.as_numpy_dtype()))
                 for i, batch_out in enumerate(batch_outs):
                     outs[i][batch_start:batch_end] = sequence.pad_sequences(batch_out, value=float(max_value),
                                                                             maxlen=max_len,
-                                                                            dtype=batch_out.dtype, padding="post")
+                                                                            dtype=batch_out.dtype.as_numpy_dtype(),
+                                                                            padding="post")
 
             if len(outs) == 1:
                 return outs[0]
@@ -873,8 +920,8 @@ class CTCModel:
 
         assert (K.backend() == 'tensorflow')
 
-        batch = tf.log(tf.transpose(y_pred, perm=[1, 0, 2]) + 1e-8)
-        input_length = tf.to_int32(tf.squeeze(input_length))
+        batch = tf.math.log(tf.transpose(y_pred, perm=[1, 0, 2]) + 1e-8)
+        input_length = tf.cast(tf.squeeze(input_length), tf.int32)
 
         greedy = my_params['greedy']
         beam_width = my_params['beam_width']
@@ -1086,7 +1133,6 @@ class CTCModel:
             self.model_train.compile(loss={'CTCloss': lambda yt, yp: yp}, optimizer=optimizer)
             self.model_pred.compile(loss={'CTCdecode': lambda yt, yp: yp}, optimizer=optimizer)
             self.model_eval.compile(loss={'CTCanalysis': lambda yt, yp: yp}, optimizer=optimizer)
-
 
     def load_weights(self, file_weights, by_name=False):
         """
@@ -1343,7 +1389,7 @@ def check_num_samples(ins,
         raise ValueError(
             'If ' + steps_name + ' is set, the `batch_size` must be None.')
 
-    if not ins or any(K.is_tensor(x) for x in ins):
+    if not ins or any(tf.is_tensor(x) for x in ins):
         if steps is None:
             raise ValueError(
                 'If your data is in the form of symbolic tensors, '
@@ -1356,3 +1402,12 @@ def check_num_samples(ins,
     if hasattr(ins[0], 'shape'):
         return int(ins[0].shape[0])
     return None  # Edge case where ins == [static_learning_phase]
+
+def concat(tensors, axis=0):
+  """Concats `tensor`s along `axis`."""
+  if isinstance(tensors[0], sparse_tensor.SparseTensor):
+    return sparse_ops.sparse_concat_v2(axis=axis, sp_inputs=tensors)
+  if isinstance(tensors[0], ragged_tensor.RaggedTensor):
+    return ragged_concat_ops.concat(tensors, axis=axis)
+  return array_ops.concat(tensors, axis=axis)
+
