@@ -1,10 +1,12 @@
+import os
 from keras.layers import TimeDistributed, Activation, Dense, Input, Bidirectional, LSTM, Masking, GaussianNoise
 from keras.optimizers import Adam
 from keras_ctcmodel.CTCModel import CTCModel as CTCModel
 import pickle
 from keras.preprocessing import sequence
+from tensorflow.python.keras.utils.generic_utils import Progbar
 import numpy as np
-
+from six.moves.urllib.request import urlretrieve
 
 def create_network(nb_features, nb_labels, padding_value):
 
@@ -32,8 +34,28 @@ if __name__ == '__main__':
     applied on sequences of digits. Digits are images from the MNIST dataset that have been concatenated 
     to get observation sequences and label sequences of different lengths (from 2 to 5)."""
 
+    # Download data
+    fpath = './seqDigits.pkl'
+    origin = 'https://www.dropbox.com/s/or7s6zo038cc01v/seqDigits.pkl?dl=1'    
+    if not os.path.exists(fpath):
+        print("Downloading data")
+        class ProgressTracker(object):
+            # Maintain progbar for the lifetime of download.
+            # This design was chosen for Python 2.7 compatibility.
+            progbar = None
+
+        def dl_progress(count, block_size, total_size):
+            if ProgressTracker.progbar is None:
+                if total_size == -1:
+                    total_size = None
+                ProgressTracker.progbar = Progbar(total_size)
+            else:
+                ProgressTracker.progbar.update(count * block_size)
+
+        urlretrieve(origin, fpath, dl_progress)
+
     # load data from a pickle file
-    (x_train, y_train), (x_test, y_test) = pickle.load(open('./seqDigits.pkl', 'rb'))
+    (x_train, y_train), (x_test, y_test) = pickle.load(open(fpath, 'rb'))
 
     nb_labels = 10 # number of labels (10, this is digits)
     batch_size = 32 # size of the batch that are considered
