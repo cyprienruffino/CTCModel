@@ -12,6 +12,7 @@ As of today, CTCModel only works with Tensorflow<2.0, migration is due soon.
 ## Dependencies
 - Keras
 - Tensorflow<2.0.0
+- six (for the example only)
 
 ## Installation
 $ git clone https://github.com/cyprienruffino/CTCModel  
