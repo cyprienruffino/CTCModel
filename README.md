@@ -15,6 +15,8 @@ It directly inherits from the traditionnal Keras Model and uses the TensorFlow i
 ## Installation
 $ pip install keras-ctcmodel
 
+OR
+
 $ git clone https://github.com/cyprienruffino/CTCModel  
 $ cd CTCModel
 $ python setup.py install --user
