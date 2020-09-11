@@ -8,6 +8,24 @@ from tensorflow.python.keras.utils.generic_utils import Progbar
 import numpy as np
 from six.moves.urllib.request import urlretrieve
 
+
+def download_data():
+    origin = 'https://www.dropbox.com/s/or7s6zo038cc01v/seqDigits.pkl?dl=1'    
+    if not os.path.exists(fpath):
+        print("Downloading data")
+        class ProgressTracker(object):
+              progbar = None
+
+        def dl_progress(count, block_size, total_size):
+            if ProgressTracker.progbar is None:
+                if total_size == -1:
+                    total_size = None
+                ProgressTracker.progbar = Progbar(total_size)
+            else:
+                ProgressTracker.progbar.update(count * block_size)
+
+        urlretrieve(origin, fpath, dl_progress)
+
 def create_network(nb_features, nb_labels, padding_value):
 
     # Define the network architecture
@@ -28,7 +46,6 @@ def create_network(nb_features, nb_labels, padding_value):
     return network
 
 
-
 if __name__ == '__main__':
     """ Example of recurrent neural network using CTCModel
     applied on sequences of digits. Digits are images from the MNIST dataset that have been concatenated 
@@ -36,23 +53,7 @@ if __name__ == '__main__':
 
     # Download data
     fpath = './seqDigits.pkl'
-    origin = 'https://www.dropbox.com/s/or7s6zo038cc01v/seqDigits.pkl?dl=1'    
-    if not os.path.exists(fpath):
-        print("Downloading data")
-        class ProgressTracker(object):
-            # Maintain progbar for the lifetime of download.
-            # This design was chosen for Python 2.7 compatibility.
-            progbar = None
-
-        def dl_progress(count, block_size, total_size):
-            if ProgressTracker.progbar is None:
-                if total_size == -1:
-                    total_size = None
-                ProgressTracker.progbar = Progbar(total_size)
-            else:
-                ProgressTracker.progbar.update(count * block_size)
-
-        urlretrieve(origin, fpath, dl_progress)
+    download_data()
 
     # load data from a pickle file
     (x_train, y_train), (x_test, y_test) = pickle.load(open(fpath, 'rb'))
