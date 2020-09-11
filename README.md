@@ -7,11 +7,9 @@ CTCModel makes the training of a RNN with the Connectionnist Temporal Classifica
 
 It directly inherits from the traditionnal Keras Model and uses the TensorFlow implementation of the CTC loss and decoding functions.
 
-As of today, CTCModel only works with Tensorflow<2.0, migration is due soon.
-
 ## Dependencies
 - Keras
-- Tensorflow<2.0.0
+- Tensorflow
 
 ## Installation
 $ git clone https://github.com/cyprienruffino/CTCModel  
