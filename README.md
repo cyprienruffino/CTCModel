@@ -77,6 +77,8 @@ CTCModel was developped at the LITIS laboratory, Normandie University (http://ww
 
 CTCModel is under the terms of the MIT licence.  
 
+CTCModel is hosted on PyPI (https://pypi.org/project/keras-ctcmodel/)
+
 If you use CTCModel for research purposes, please consider adding the following citation to your paper:
 
 <code>
