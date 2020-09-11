@@ -12,7 +12,7 @@ It directly inherits from the traditionnal Keras Model and uses the TensorFlow i
 - Tensorflow
 
 ## Installation
-$ git clone https://github.com/litislab/CTCModel  
+$ git clone https://github.com/cyprienruffino/CTCModel  
 $ cd CTCModel
 
 ## Getting started
