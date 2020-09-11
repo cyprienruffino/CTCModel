@@ -72,7 +72,7 @@ Except the three specific layers, CTCModel works as a standard Keras Model and m
 ## Credits and licence
 CTCModel was developped at the LITIS laboratory, Normandie University (http://www.litislab.fr) by Cyprien RUFFINO and Yann SOULLARD, under the supervision of Thierry PAQUET.  
 
-CTCModel is under the terms of the GPL-3.0 licence.  
+CTCModel is under the terms of the MIT licence.  
 
 If you use CTCModel for research purposes, please consider adding the following citation to your paper:
 
