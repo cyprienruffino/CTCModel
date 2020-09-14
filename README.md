@@ -1,6 +1,8 @@
 ﻿
 # CTCModel : A Connectionnist Temporal Classification implementation for Keras
 
+[![PyPI version](https://badge.fury.io/py/keras-ctcmodel.svg)](https://badge.fury.io/py/keras-ctcmodel)  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Description
 
 CTCModel makes the training of a RNN with the Connectionnist Temporal Classification approach completely transparent.
