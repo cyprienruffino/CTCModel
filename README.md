@@ -43,6 +43,13 @@ output_layer = Activation("sigmoid")(dense)
 
 model = CTCModel([input_layer], [output_layer])
 model.compile(optimizer=Adam(lr=1e-4))
+model.summary()
+
+model.save_model("./")
+
+loaded = CTCModel(None, None)
+loaded.load_model("./", optimizer=Adam(lr=1e-4))
+loaded.summary()
 ```
 
 
