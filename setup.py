@@ -14,7 +14,7 @@ if os.path.isfile(requirementPath):
         
 setuptools.setup(
     name="keras_ctcmodel",
-    version="1.0.0",
+    version="1.0.0rc2",
     install_requires=install_requires,
     author="Cyprien Ruffino",
     author_email="ruffino.cyprien@gmail.com",
