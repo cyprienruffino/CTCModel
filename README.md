@@ -32,14 +32,24 @@ from keras.optimizers import Adam
 from numpy import zeros
 from keras_ctcmodel.CTCModel import CTCModel as CTCModel
 
+h_features = 10
+nb_labels = 10
+
 input_layer = Input((None, h_features))
 lstm0 = LSTM(128, return_sequences=True)(input_layer)
 lstm1 = LSTM(128, return_sequences=True)(lstm0)
 dense = TimeDistributed(Dense(nb_labels))(lstm1)
-output_layer = Activation("sigmoid")
+output_layer = Activation("sigmoid")(dense)
 
 model = CTCModel([input_layer], [output_layer])
 model.compile(optimizer=Adam(lr=1e-4))
+model.summary()
+
+model.save_model("./")
+
+loaded = CTCModel(None, None)
+loaded.load_model("./", optimizer=Adam(lr=1e-4))
+loaded.summary()
 ```
 
 
