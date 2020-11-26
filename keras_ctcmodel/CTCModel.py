@@ -955,28 +955,30 @@ class CTCModel:
         """
 
         model_json = self.model_train.to_json()
-        with open(path_dir + "/model_train.json", "w") as json_file:
+        with open(os.path.join(path_dir, "model_train.json"), "w") as json_file:
             json_file.write(model_json)
 
         model_json = self.model_pred.to_json()
-        with open(path_dir + "/model_pred.json", "w") as json_file:
+        with open(os.path.join(path_dir, "model_pred.json"), "w") as json_file:
             json_file.write(model_json)
 
         model_json = self.model_eval.to_json()
-        with open(path_dir + "/model_eval.json", "w") as json_file:
+        with open(os.path.join(path_dir, "model_eval.json"), "w") as json_file:
             json_file.write(model_json)
 
         model_json = self.model_init.to_json()
-        with open(path_dir + "/model_init.json", "w") as json_file:
+        with open(os.path.join(path_dir, "model_init.json"), "w") as json_file:
             json_file.write(model_json)
 
         param = {'greedy': self.greedy, 'beam_width': self.beam_width, 'top_paths': self.top_paths,
                  'charset': self.charset}
 
-        output = open(path_dir + "/model_param.pkl", 'wb')
+        output = open(os.path.join(path_dir, "model_param.pkl"), 'wb')
         p = pickle.Pickler(output)
         p.dump(param)
         output.close()
+
+        self.model_train.save_weights(os.path.join(path_dir, "model_weights.hdf5"))
 
     def load_model(self, path_dir, optimizer, init_archi=True, file_weights=None, change_parameters=False, \
                    init_last_layer=False, add_layers=None, trainable=False, removed_layers=2):
@@ -998,24 +1000,24 @@ class CTCModel:
 
         if init_archi:
 
-            json_file = open(path_dir + '/model_train.json', 'r')
+            json_file = open(os.path.join(path_dir, "model_train.json"), 'r')
             loaded_model_json = json_file.read()
             json_file.close()
             self.model_train = model_from_json(loaded_model_json)
 
-            json_file = open(path_dir + '/model_pred.json', 'r')
+            json_file = open(os.path.join(path_dir, "model_pred.json"), 'r')
             loaded_model_json = json_file.read()
             json_file.close()
             self.model_pred = model_from_json(loaded_model_json, custom_objects={"tf": tf})
 
-            json_file = open(path_dir + '/model_eval.json', 'r')
+            json_file = open(os.path.join(path_dir, "model_eval.json"), 'r')
             loaded_model_json = json_file.read()
             json_file.close()
             self.model_eval = model_from_json(loaded_model_json, custom_objects={"tf": tf, "ctc": ctc,
                                                                                  "tf_edit_distance": tf_edit_distance,
                                                                                  "Kreshape_To1D": Kreshape_To1D})
 
-            json_file = open(path_dir + '/model_init.json', 'r')
+            json_file = open(os.path.join(path_dir, "model_init.json"), 'r')
             loaded_model_json = json_file.read()
             json_file.close()
             self.model_init = model_from_json(loaded_model_json, custom_objects={"tf": tf})
@@ -1023,7 +1025,7 @@ class CTCModel:
             self.inputs = self.model_init.inputs
             self.outputs = self.model_init.outputs
 
-            input = open(path_dir + "/model_param.pkl", 'rb')
+            input = open(os.path.join(path_dir, "model_param.pkl"), 'rb')
             p = pickle.Unpickler(input)
             param = p.load()
             input.close()
@@ -1036,17 +1038,10 @@ class CTCModel:
 
         self.compile(optimizer)
 
-        if file_weights is not None:
-            if os.path.exists(file_weights):
-                self.load_weights(file_weights)
-                # self.model_train.load_weights(file_weights)
-                # self.model_pred.set_weights(self.model_train.get_weights())
-                # self.model_eval.set_weights(self.model_train.get_weights())
-            elif os.path.exists(path_dir + file_weights):
-                self.load_weights(path_dir + file_weights)
-                # self.model_train.load_weights(path_dir + file_weights)
-                # self.model_pred.set_weights(self.model_train.get_weights())
-                # self.model_eval.set_weights(self.model_train.get_weights())
+        if file_weights is None:
+            file_weights = os.path.join(path_dir, "model_weights.hdf5")
+
+        self.load_weights(path_dir + file_weights)
 
         if add_layers != None:  #  add layers after transfer
             labels = Input(name='labels', shape=[None])
@@ -1150,16 +1145,11 @@ class CTCModel:
         only if they share the same name. This is useful
         for fine-tuning or transfer-learning models where
         some of the layers have changed.
-
-        If the message "weights can not be loaded.." appears, make sure that the directory of the h5 file is right.
         """
 
-        if os.path.exists(file_weights):
-            self.model_train.load_weights(file_weights, by_name=by_name)
-            self.model_pred.set_weights(self.model_train.get_weights())
-            self.model_eval.set_weights(self.model_train.get_weights())
-        else:
-            print("weights can not be loaded..")
+        self.model_train.load_weights(file_weights, by_name=by_name)
+        self.model_pred.set_weights(self.model_train.get_weights())
+        self.model_eval.set_weights(self.model_train.get_weights())
 
 
 def _standardize_input_data(data, names, shapes=None,

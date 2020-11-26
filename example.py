@@ -90,8 +90,8 @@ if __name__ == '__main__':
 
 
     # CTC training
-    network.fit(x=[x_train_pad, y_train_pad, x_train_len, y_train_len], y=np.zeros(nb_train), \
-                batch_size=batch_size, epochs=nb_epochs)
+    #network.fit(x=[x_train_pad, y_train_pad, x_train_len, y_train_len], y=np.zeros(nb_train), \
+    #            batch_size=batch_size, epochs=nb_epochs)
 
 
     # Evaluation: loss, label error rate and sequence error rate are requested
