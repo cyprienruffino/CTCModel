@@ -20,7 +20,9 @@ $ pip install keras-ctcmodel
 OR
 
 $ git clone https://github.com/cyprienruffino/CTCModel  
+
 $ cd CTCModel
+
 $ python setup.py install --user
 
 ## Getting started
