@@ -10,7 +10,7 @@ from six.moves.urllib.request import urlretrieve
 
 
 def download_data():
-    origin = 'https://www.dropbox.com/s/or7s6zo038cc01v/seqDigits.pkl?dl=1'    
+    origin = 'https://www.dropbox.com/s/iezlomxnb5oeq26/seqDigits.pkl?dl=1'    
     if not os.path.exists(fpath):
         print("Downloading data")
         class ProgressTracker(object):
